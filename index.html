@@ -1,55 +1,48 @@
-<!doctype html>
-<html>
-<head>
-  <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width,initial-scale=1"/>
-  <title>Day 1 — Tyre Shop (UK)</title>
-  <style>
-    body{font-family:Arial, sans-serif; padding:16px; max-width:720px; margin:auto;}
-    button{padding:12px 14px; margin:6px 0; width:100%; font-size:16px;}
-    .card{border:1px solid #ddd; border-radius:12px; padding:14px; margin:12px 0;}
-    .muted{color:#666}
-   </style>
-<script src="https://telegram.org/js/telegram-web-app.js"></script>
-</head>
-<body>
-  <h2>Day 1 — Start (UK) 🇬🇧</h2>
-  <div class="card">
-    <div><b>Starting capital:</b> £30,000</div>
-    <div class="muted">Choose location for your tyre shop</div>
-  </div>
+<script>
+  // Telegram Mini App init (один раз)
+  const tg = window.Telegram?.WebApp;
+  tg?.ready();
+  tg?.expand();
 
-  <div class="card">
-    <button onclick="pick('Residential', 2500, 600, '8–15', 55)">🏘 Residential Area</button>
-    <button onclick="pick('Motorway', 1800, 400, '5–20', 65)">🛣 Near Motorway</button>
-    <button onclick="pick('Industrial', 1200, 300, '6–10', 50)">🏭 Industrial Estate</button>
-    <button onclick="pick('Business Plaza', 4000, 1000, '5–12', 85)">🏢 City Commercial Area</button>
-  </div>
+  function renderChoice(name, rent, rates, flow, чек) {
+    const fixed = rent + rates;
+    const out = document.getElementById('out');
+    out.style.display = 'block';
+    out.innerHTML = `
+      <h3>✅ You chose: ${name}</h3>
+      <div><b>Rent:</b> £${rent}/month</div>
+      <div><b>Business rates (est.):</b> £${rates}/month</div>
+      <div><b>Fixed costs:</b> £${fixed}/month</div>
+      <div><b>Flow:</b> ${flow} cars/day</div>
+      <div><b>Avg ticket:</b> £${чек}</div>
+      <p class="muted">Day 1 complete. Day 2: break-even & budget.</p>
+      <button onclick="finishDay1()">✅ Завершить День 1</button>
+    `;
+  }
 
-  <div id="out" class="card" style="display:none;"></div>
+  // Нажатие на локацию
+  function pick(name, rent, rates, flow, чек) {
+    localStorage.setItem("day1_location", JSON.stringify({ name, rent, rates, flow, чек }));
+    renderChoice(name, rent, rates, flow, чек);
+  }
 
-  <script>
-    function pick(name, rent, rates, flow, чек){
-      localStorage.setItem("day1_location", JSON.stringify({name, rent, rates, flow, чек}));
-      const tg = window.Telegram?.WebApp;
-            tg?.ready();
-            tg?.expand();
-      const fixed = rent + rates;
-      document.getElementById('out').style.display='block';
-      document.getElementById('out').innerHTML = `
-        <h3>✅ You chose: ${name}</h3>
-        <div><b>Rent:</b> £${rent}/month</div>
-        <div><b>Business rates (est.):</b> £${rates}/month</div>
-        <div><b>Fixed costs:</b> £${fixed}/month</div>
-        <div><b>Flow:</b> ${flow} cars/day</div>
-        <div><b>Avg ticket:</b> £${чек}</div>
-        <p class="muted">Day 1 complete. Day 2: break-even & budget.</p>
-      `;
-      const saved = localStorage.getItem("day1_location");
-if (saved) {
-  const s = JSON.parse(saved);
-  pick(s.name, s.rent, s.rates, s.flow, s.чек);
+  // Автовосстановление выбора (один раз при загрузке страницы)
+  (function restore() {
+    const saved = localStorage.getItem("day1_location");
+    if (!saved) return;
+    try {
+      const s = JSON.parse(saved);
+      renderChoice(s.name, s.rent, s.rates, s.flow, s.чек);
+    } catch (e) {
+      console.log("Bad saved data:", e);
     }
-  </script>
-</body>
-  </html>
+  })();
+
+  // Завершение дня 1: отправка данных боту
+  function finishDay1() {
+    const payload = localStorage.getItem("day1_location") || "{}";
+    tg?.sendData(payload); // бот получит web_app_data
+    // можно закрыть мини-апп:
+    tg?.close();
+  }
+</script>
