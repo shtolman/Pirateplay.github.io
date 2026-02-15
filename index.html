@@ -9,7 +9,8 @@
     button{padding:12px 14px; margin:6px 0; width:100%; font-size:16px;}
     .card{border:1px solid #ddd; border-radius:12px; padding:14px; margin:12px 0;}
     .muted{color:#666}
-  </style>
+   </style>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
 </head>
 <body>
   <h2>Day 1 — Start (UK) 🇬🇧</h2>
@@ -29,6 +30,10 @@
 
   <script>
     function pick(name, rent, rates, flow, чек){
+      localStorage.setItem("day1_location", JSON.stringify({name, rent, rates, flow, чек}));
+      const tg = window.Telegram?.WebApp;
+            tg?.ready();
+            tg?.expand();
       const fixed = rent + rates;
       document.getElementById('out').style.display='block';
       document.getElementById('out').innerHTML = `
@@ -40,6 +45,10 @@
         <div><b>Avg ticket:</b> £${чек}</div>
         <p class="muted">Day 1 complete. Day 2: break-even & budget.</p>
       `;
+      const saved = localStorage.getItem("day1_location");
+if (saved) {
+  const s = JSON.parse(saved);
+  pick(s.name, s.rent, s.rates, s.flow, s.чек);
     }
   </script>
 </body>
