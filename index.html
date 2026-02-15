@@ -1,40 +1,132 @@
-<script>
-  // Telegram Mini App init (один раз)
-  const tg = window.Telegram?.WebApp;
-  tg?.ready();
-  tg?.expand();
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Day 1 — Tyre Shop (UK)</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <style>
+    body{font-family:Arial, sans-serif; padding:16px; max-width:720px; margin:auto;}
+    button{padding:12px 14px; margin:6px 0; width:100%; font-size:16px; cursor:pointer;}
+    .card{border:1px solid #ddd; border-radius:12px; padding:14px; margin:12px 0;}
+    .muted{color:#666}
+    .row{display:grid; gap:8px;}
+  </style>
+</head>
 
-  function renderChoice(name, rent, rates, flow, чек) {
-    const fixed = rent + rates;
-    const out = document.getElementById('out');
-    out.style.display = 'block';
-    out.innerHTML = `
-      <h3>✅ You chose: ${name}</h3>
-      <div><b>Rent:</b> £${rent}/month</div>
-      <div><b>Business rates (est.):</b> £${rates}/month</div>
-      <div><b>Fixed costs:</b> £${fixed}/month</div>
-      <div><b>Flow:</b> ${flow} cars/day</div>
-      <div><b>Avg ticket:</b> £${чек}</div>
-      <p class="muted">Day 1 complete. Day 2: break-even & budget.</p>
-      <button onclick="finishDay1()">✅ Завершить День 1</button>
-    `;
-  }
+<body>
+  <h2>Day 1 — Start (UK) 🇬🇧</h2>
 
-  // Нажатие на локацию
-  function pick(name, rent, rates, flow, чек) {
-    localStorage.setItem("day1_location", JSON.stringify({ name, rent, rates, flow, чек }));
-    renderChoice(name, rent, rates, flow, чек);
-  }
+  <div class="card">
+    <div><b>Starting capital:</b> £30,000</div>
+    <div class="muted">Choose location for your tyre shop</div>
+  </div>
 
-  // Автовосстановление выбора (один раз при загрузке страницы)
-  (function restore() {
-    const saved = localStorage.getItem("day1_location");
-    if (!saved) return;
-    try {
-      const s = JSON.parse(saved);
-      renderChoice(s.name, s.rent, s.rates, s.flow, s.чек);
-    } catch (e) {
-      console.log("Bad saved data:", e);
+  <div class="card row">
+    <button id="btn-res">🏘 Residential Area</button>
+    <button id="btn-mot">🛣 Near Motorway</button>
+    <button id="btn-ind">🏭 Industrial Estate</button>
+    <button id="btn-biz">🏢 City Commercial Area</button>
+  </div>
+
+  <div id="out" class="card" style="display:none;"></div>
+
+  <script>
+    // 1) Telegram init
+    const tg = window.Telegram?.WebApp;
+    if (tg) {
+      tg.ready();
+      tg.expand();
+    }
+
+    const KEY = "day1_location";
+
+    function renderChoice(choice) {
+      const fixed = choice.rent + choice.rates;
+      const out = document.getElementById("out");
+      out.style.display = "block";
+      out.innerHTML = `
+        <h3>✅ You chose: ${choice.name}</h3>
+        <div><b>Rent:</b> £${choice.rent}/month</div>
+        <div><b>Business rates (est.):</b> £${choice.rates}/month</div>
+        <div><b>Fixed costs:</b> £${fixed}/month</div>
+        <div><b>Flow:</b> ${choice.flow} cars/day</div>
+        <div><b>Avg ticket:</b> £${choice.ticket}</div>
+        <p class="muted">Day 1 complete. Day 2: break-even & budget.</p>
+        <button id="finish">✅ Finish Day 1 (send to bot)</button>
+      `;
+
+      // кнопка finish после отрисовки
+      document.getElementById("finish").onclick = () => finishDay1(choice);
+    }
+
+    function saveChoice(choice) {
+      localStorage.setItem(KEY, JSON.stringify(choice));
+    }
+
+    function loadChoice() {
+      const s = localStorage.getItem(KEY);
+      if (!s) return null;
+      try { return JSON.parse(s); } catch { return null; }
+    }
+
+    function pick(choice) {
+      saveChoice(choice);
+      renderChoice(choice);
+    }
+
+    function finishDay1(choice) {
+      const payload = JSON.stringify({ day: 1, business: "Tyre Shop (UK)", ...choice });
+
+      if (tg && tg.sendData) {
+        tg.sendData(payload); // бот получит web_app_data
+        // tg.close(); // если хочешь сразу закрывать мини-апп — раскомментируй
+        alert("Sent to bot ✅");
+      } else {
+        // если открыто НЕ внутри Telegram — покажем payload
+        alert("Not in Telegram WebApp. Payload:\n" + payload);
+      }
+    }
+
+    // 2) привязка кнопок
+    document.getElementById("btn-res").onclick = () => pick({
+      name: "Residential",
+      rent: 2500,
+      rates: 600,
+      flow: "8–15",
+      ticket: 55
+    });
+
+    document.getElementById("btn-mot").onclick = () => pick({
+      name: "Motorway",
+      rent: 1800,
+      rates: 400,
+      flow: "5–20",
+      ticket: 65
+    });
+
+    document.getElementById("btn-ind").onclick = () => pick({
+      name: "Industrial",
+      rent: 1200,
+      rates: 300,
+      flow: "6–10",
+      ticket: 50
+    });
+
+    document.getElementById("btn-biz").onclick = () => pick({
+      name: "Business Plaza",
+      rent: 4000,
+      rates: 1000,
+      flow: "5–12",
+      ticket: 85
+    });
+
+    // 3) автозагрузка выбора при старте (один раз)
+    const prev = loadChoice();
+    if (prev) renderChoice(prev);
+  </script>
+</body>
+</html>      console.log("Bad saved data:", e);
     }
   })();
 
