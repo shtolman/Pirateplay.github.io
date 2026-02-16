@@ -6,35 +6,125 @@
   <title>Business Sim — Assistant</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <style>
-    body{font-family:Arial,sans-serif; margin:0; background:#fff;}
-    .wrap{max-width:820px; margin:0 auto; padding:12px;}
-    .top{display:flex; align-items:center; gap:10px; padding:8px 0;}
-    .badge{padding:6px 10px; border:1px solid #ddd; border-radius:999px; font-size:12px; color:#444;}
-    .chat{border:1px solid #ddd; border-radius:14px; padding:12px; height:55vh; overflow:auto; background:#fafafa;}
-    .msg{margin:10px 0; display:flex;}
-    .msg .b{max-width:85%; padding:10px 12px; border-radius:14px; white-space:pre-wrap; line-height:1.25;}
-    .me{justify-content:flex-end;}
-    .me .b{background:#e7f0ff; border:1px solid #cfe0ff;}
-    .ai .b{background:#fff; border:1px solid #e6e6e6;}
-    .bar{display:flex; gap:8px; margin-top:10px;}
-    input{flex:1; padding:12px; border-radius:12px; border:1px solid #ddd; font-size:16px;}
-    button{padding:12px 14px; border-radius:12px; border:1px solid #ddd; background:#fff; font-size:15px; cursor:pointer;}
-    button:disabled{opacity:.6; cursor:not-allowed;}
-    .quick{display:flex; gap:8px; flex-wrap:wrap; margin-top:10px;}
-    .muted{color:#666; font-size:12px; margin-top:8px;}
+    body{font-family:Arial,sans-serif;margin:0;background:#fff}
+    .wrap{max-width:820px;margin:0 auto;padding:12px}
+    .top{display:flex;gap:10px;align-items:center;padding:8px 0}
+    .badge{padding:6px 10px;border:1px solid #ddd;border-radius:999px;font-size:12px;color:#444}
+    .chat{border:1px solid #ddd;border-radius:14px;padding:12px;height:55vh;overflow:auto;background:#fafafa}
+    .msg{margin:10px 0;display:flex}
+    .b{max-width:85%;padding:10px 12px;border-radius:14px;white-space:pre-wrap;line-height:1.25}
+    .me{justify-content:flex-end}
+    .me .b{background:#e7f0ff;border:1px solid #cfe0ff}
+    .ai .b{background:#fff;border:1px solid #e6e6e6}
+    .bar{display:flex;gap:8px;margin-top:10px}
+    input{flex:1;padding:12px;border-radius:12px;border:1px solid #ddd;font-size:16px}
+    button{padding:12px 14px;border-radius:12px;border:1px solid #ddd;background:#fff;font-size:15px;cursor:pointer}
+    button:disabled{opacity:.6;cursor:not-allowed}
+    .quick{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+    .muted{color:#666;font-size:12px;margin-top:8px}
   </style>
 </head>
-
 <body>
   <div class="wrap">
     <div class="top">
       <b>🤖 ИИ-напарник</b>
       <span class="badge">UK economy</span>
-      <span class="badge" id="status">offline</span>
+      <span class="badge" id="status">online</span>
     </div>
 
     <div id="chat" class="chat"></div>
 
+    <div class="bar">
+      <input id="inp" placeholder="Напиши ассистенту…" autocomplete="off"/>
+      <button id="send">Отправить</button>
+    </div>
+
+    <div class="quick">
+      <button class="q" data-q="Я хочу оффлайн бизнес. Задай 3 вопроса, чтобы понять что мне ближе.">🧱 Оффлайн</button>
+      <button class="q" data-q="МВП: шиномонтаж в UK. Дай план Дня 1 и предложи 4 локации.">🚗 Шиномонтаж (MVP)</button>
+      <button id="clear">🧹 Очистить</button>
+    </div>
+
+    <div class="muted">Если видишь ошибку — значит /api/chat не отвечает JSON.</div>
+  </div>
+
+  <script>
+    const tg = window.Telegram && window.Telegram.WebApp ? window.Telegram.WebApp : null;
+    if (tg) { tg.ready(); tg.expand(); }
+
+    const chatEl = document.getElementById("chat");
+    const inp = document.getElementById("inp");
+    const sendBtn = document.getElementById("send");
+    const statusEl = document.getElementById("status");
+
+    const STORAGE_KEY = "sim_chat_v1";
+    let messages = [];
+    try { messages = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]"); } catch { messages = []; }
+
+    function esc(s){ return String(s).replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;"); }
+
+    function render(){
+      chatEl.innerHTML = messages.map(m => {
+        const cls = m.role === "user" ? "msg me" : "msg ai";
+        return '<div class="'+cls+'"><div class="b">'+esc(m.text)+'</div></div>';
+      }).join("");
+      chatEl.scrollTop = chatEl.scrollHeight;
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(messages));
+    }
+
+    function add(role, text){ messages.push({role, text}); render(); }
+
+    async function ask(text){
+      statusEl.textContent = "thinking…";
+      sendBtn.disabled = true;
+      try{
+        const r = await fetch("/api/chat", {
+          method: "POST",
+          headers: {"Content-Type":"application/json"},
+          body: JSON.stringify({ message: text, history: messages.slice(-10) })
+        });
+
+        const raw = await r.text();
+        let data;
+        try { data = JSON.parse(raw); }
+        catch { throw new Error("Non-JSON ("+r.status+"): " + raw.slice(0, 120)); }
+
+        if (!r.ok) throw new Error(JSON.stringify(data).slice(0,200));
+        add("assistant", data.text || "(empty)");
+      } catch(e){
+        add("assistant", "⚠️ Ошибка: " + String(e));
+      } finally {
+        statusEl.textContent = "online";
+        sendBtn.disabled = false;
+      }
+    }
+
+    if (messages.length === 0) {
+      add("assistant", "Привет 🙂 Оффлайн или онлайн? (можешь нажать кнопки ниже)");
+    } else render();
+
+    sendBtn.onclick = async () => {
+      const t = inp.value.trim();
+      if (!t) return;
+      inp.value = "";
+      add("user", t);
+      await ask(t);
+    };
+
+    inp.addEventListener("keydown", (e)=>{ if (e.key==="Enter") sendBtn.click(); });
+
+    document.querySelectorAll(".q").forEach(b=>{
+      b.onclick = ()=>{ inp.value = b.getAttribute("data-q"); sendBtn.click(); };
+    });
+
+    document.getElementById("clear").onclick = ()=>{
+      localStorage.removeItem(STORAGE_KEY);
+      messages = [];
+      add("assistant","Ок, очистил. Оффлайн или онлайн?");
+    };
+  </script>
+</body>
+</html>
     <div class="bar">
       <input id="inp" placeholder="Напиши ассистенту…" autocomplete="off"/>
       <button id="send">Отправить</button>
