@@ -193,7 +193,7 @@
       if (/Residential/i.test(text)) state.location = "Residential";
 
       try{
-        const r = await fetch("/api/chat", {
+        const r = await fetch("https://pirateplay-github-io.vercel.app/api/chat", {
           method: "POST",
           headers: {"Content-Type":"application/json"},
           body: JSON.stringify({
