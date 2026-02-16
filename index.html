@@ -3,38 +3,169 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
-  <title>Day 1 — Tyre Shop (UK)</title>
+  <title>Business Sim — Assistant</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <style>
-    body{font-family:Arial, sans-serif; padding:16px; max-width:720px; margin:auto;}
-    button{padding:12px 14px; margin:6px 0; width:100%; font-size:16px; cursor:pointer;}
-    .card{border:1px solid #ddd; border-radius:12px; padding:14px; margin:12px 0;}
-    .muted{color:#666}
-    .row{display:grid; gap:8px;}
+    body{font-family:Arial,sans-serif; margin:0; background:#fff;}
+    .wrap{max-width:820px; margin:0 auto; padding:12px;}
+    .top{display:flex; align-items:center; gap:10px; padding:8px 0;}
+    .badge{padding:6px 10px; border:1px solid #ddd; border-radius:999px; font-size:12px; color:#444;}
+    .chat{border:1px solid #ddd; border-radius:14px; padding:12px; height:55vh; overflow:auto; background:#fafafa;}
+    .msg{margin:10px 0; display:flex;}
+    .msg .b{max-width:85%; padding:10px 12px; border-radius:14px; white-space:pre-wrap; line-height:1.25;}
+    .me{justify-content:flex-end;}
+    .me .b{background:#e7f0ff; border:1px solid #cfe0ff;}
+    .ai .b{background:#fff; border:1px solid #e6e6e6;}
+    .bar{display:flex; gap:8px; margin-top:10px;}
+    input{flex:1; padding:12px; border-radius:12px; border:1px solid #ddd; font-size:16px;}
+    button{padding:12px 14px; border-radius:12px; border:1px solid #ddd; background:#fff; font-size:15px; cursor:pointer;}
+    button:disabled{opacity:.6; cursor:not-allowed;}
+    .quick{display:flex; gap:8px; flex-wrap:wrap; margin-top:10px;}
+    .muted{color:#666; font-size:12px; margin-top:8px;}
   </style>
 </head>
 
 <body>
-  <h2>Day 1 — Start (UK) 🇬🇧</h2>
+  <div class="wrap">
+    <div class="top">
+      <b>🤖 ИИ-напарник</b>
+      <span class="badge">UK economy</span>
+      <span class="badge" id="status">offline</span>
+    </div>
 
-  <div class="card">
-    <div><b>Starting capital:</b> £30,000</div>
-    <div class="muted">Choose location for your tyre shop</div>
+    <div id="chat" class="chat"></div>
+
+    <div class="bar">
+      <input id="inp" placeholder="Напиши ассистенту…" autocomplete="off"/>
+      <button id="send">Отправить</button>
+    </div>
+
+    <div class="quick">
+      <button class="q" data-q="Я хочу оффлайн бизнес. Задай вопросы, чтобы понять что мне ближе.">🧱 Оффлайн</button>
+      <button class="q" data-q="Я хочу онлайн бизнес. Задай вопросы, чтобы понять что мне ближе.">🌐 Онлайн</button>
+      <button class="q" data-q="МВП: я выбираю шиномонтаж в Великобритании. Дай план Дня 1 коротко.">🚗 Шиномонтаж (MVP)</button>
+      <button class="q" data-q="Покажи 4 локации (Residential, Motorway, Industrial, Business Plaza) с плюсами/минусами и UK расходами.">🗺 Локации</button>
+      <button id="clear">🧹 Очистить</button>
+    </div>
+
+    <div class="muted">
+      Совет: ассистент держит контекст твоих выборов в “state”. (История сохраняется локально.)
+    </div>
   </div>
-
-  <div class="card row">
-    <button id="btn-res">🏘 Residential Area</button>
-    <button id="btn-mot">🛣 Near Motorway</button>
-    <button id="btn-ind">🏭 Industrial Estate</button>
-    <button id="btn-biz">🏢 City Commercial Area</button>
-  </div>
-
-  <div id="out" class="card" style="display:none;"></div>
 
   <script>
-    // 1) Telegram init
+    // Telegram init
     const tg = window.Telegram?.WebApp;
-    if (tg) {
+    tg?.ready(); tg?.expand();
+
+    const chatEl = document.getElementById("chat");
+    const inp = document.getElementById("inp");
+    const sendBtn = document.getElementById("send");
+    const statusEl = document.getElementById("status");
+
+    const STORAGE_KEY = "sim_chat_v1";
+    const STATE_KEY = "sim_state_v1";
+
+    let messages = loadJson(STORAGE_KEY) || [];
+    let state = loadJson(STATE_KEY) || { day: 1, country: "UK", business: null, location: null };
+
+    function loadJson(key){ try { return JSON.parse(localStorage.getItem(key)); } catch { return null; } }
+    function save() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(messages));
+      localStorage.setItem(STATE_KEY, JSON.stringify(state));
+    }
+
+    function addMsg(role, text){
+      messages.push({ role, text, t: Date.now() });
+      save();
+      render();
+    }
+
+    function render(){
+      chatEl.innerHTML = messages.map(m => {
+        const cls = m.role === "user" ? "msg me" : "msg ai";
+        const safe = escapeHtml(m.text);
+        return `<div class="${cls}"><div class="b">${safe}</div></div>`;
+      }).join("");
+      chatEl.scrollTop = chatEl.scrollHeight;
+    }
+
+    function escapeHtml(s){
+      return String(s).replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;");
+    }
+
+    async function askAI(text){
+      statusEl.textContent = "thinking…";
+      sendBtn.disabled = true;
+
+      // Авто-обновляем state из текста (простой MVP)
+      if (/шиномонтаж/i.test(text)) state.business = "Tyre shop";
+      if (/Residential/i.test(text)) state.location = "Residential";
+
+      try{
+        const r = await fetch("/api/chat", {
+          method: "POST",
+          headers: {"Content-Type":"application/json"},
+          body: JSON.stringify({
+            message: text,
+            state,
+            history: messages.slice(-10) // последние 10 сообщений
+          })
+        });
+        const data = await r.json();
+        if (!r.ok) throw new Error(JSON.stringify(data));
+
+        addMsg("assistant", data.text || "(empty)");
+      } catch(e){
+        addMsg("assistant", "⚠️ Ошибка связи с ИИ. Проверь, настроен ли /api/chat и ключ на Vercel.\n\n" + String(e));
+      } finally {
+        statusEl.textContent = "online";
+        sendBtn.disabled = false;
+      }
+    }
+
+    // init
+    if (messages.length === 0){
+      addMsg("assistant",
+        "Привет 🙂 Я твой ИИ-напарник по бизнесу.\n" +
+        "С чего начнём: оффлайн или онлайн?\n" +
+        "Напиши ответ или жми кнопки ниже."
+      );
+    } else {
+      render();
+      statusEl.textContent = "online";
+    }
+
+    sendBtn.onclick = async () => {
+      const text = inp.value.trim();
+      if (!text) return;
+      inp.value = "";
+      addMsg("user", text);
+      await askAI(text);
+    };
+
+    inp.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") sendBtn.click();
+    });
+
+    document.querySelectorAll(".q").forEach(btn=>{
+      btn.onclick = () => {
+        const q = btn.getAttribute("data-q");
+        inp.value = q;
+        sendBtn.click();
+      };
+    });
+
+    document.getElementById("clear").onclick = () => {
+      localStorage.removeItem(STORAGE_KEY);
+      localStorage.removeItem(STATE_KEY);
+      messages = [];
+      state = { day: 1, country: "UK", business: null, location: null };
+      addMsg("assistant","Ок, очистил. Оффлайн или онлайн? 🙂");
+    };
+  </script>
+</body>
+</html>    if (tg) {
       tg.ready();
       tg.expand();
     }
