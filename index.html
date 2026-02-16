@@ -78,7 +78,7 @@
       statusEl.textContent = "thinking…";
       sendBtn.disabled = true;
       try{
-        const r = await fetch("/api/chat", {
+        const r = await fetch("https://pirateplay-github-io.vercel.app/api/chat", {
           method: "POST",
           headers: {"Content-Type":"application/json"},
           body: JSON.stringify({ message: text, history: messages.slice(-10) })
